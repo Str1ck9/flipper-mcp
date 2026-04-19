@@ -7,8 +7,8 @@
   "typical_bit_rate": 1500,
   "fingerprint": {
     "regex_patterns": [
-      "KeeLoq",
-      "HCS[0-9]{3}"
+      "\\bKeeLoq\\b",
+      "\\bHCS[0-9]{3}\\b"
     ],
     "bit_length_range": [64, 66]
   },

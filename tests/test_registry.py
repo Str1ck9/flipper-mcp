@@ -137,6 +137,25 @@ def test_fingerprint_no_match_on_empty_input():
     assert r.fingerprint("", category="subghz") == []
 
 
+def test_fingerprint_ignores_keystore_preamble():
+    """Regression: the subghz listener's boot preamble 'Load_keystore
+    keeloq_mfcodes OK' must not match the KeeLoq protocol fingerprint.
+    Discovered during live hardware testing — caused a false positive on
+    empty-air scans."""
+    r = get_registry()
+    preamble_only = (
+        "Load_keystore keeloq_mfcodes OK\n"
+        "Load_keystore keeloq_mfcodes_user Absent\n"
+        "Listening at frequency: 433919830 device: 1. Press CTRL+C to stop\n"
+        "\nPackets received 0\n"
+    )
+    matches = r.fingerprint(preamble_only, category="subghz")
+    assert matches == [], (
+        f"preamble should not fingerprint to any protocol, got: "
+        f"{[m.protocol.id for m in matches]}"
+    )
+
+
 # -- expanded protocol fingerprinting ---------------------------------------
 
 

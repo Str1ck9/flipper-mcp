@@ -159,9 +159,17 @@ def subghz_tx_from_file(sub_file_path: str) -> str:
 
 
 @mcp.tool()
-def subghz_decode_raw(sub_file_path: str) -> str:
-    """Attempt to decode a raw .sub capture into a known protocol."""
-    return _get_bridge().send(f"subghz decode_raw {sub_file_path}", timeout=30.0)
+def subghz_decode_raw(sub_file_path: str, duration_s: float = 15.0) -> str:
+    """Replay a raw .sub capture through the decoder and report matches.
+
+    ``subghz decode_raw`` is a streaming command on the Flipper: it plays the
+    saved capture back in real time through every registered decoder and
+    prints any hits. That means this tool takes at least as long as the
+    original capture (bounded here by ``duration_s``, default 15s).
+    """
+    return _get_bridge().stream(
+        f"subghz decode_raw {sub_file_path}", duration=duration_s
+    )
 
 
 # -- NFC / RFID -------------------------------------------------------------

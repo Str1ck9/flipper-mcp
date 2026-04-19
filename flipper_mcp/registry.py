@@ -143,18 +143,38 @@ class Registry:
 
     # -- fingerprinting ----------------------------------------------------
 
+    # Flipper's subghz listener prints a preamble of keystore-load lines and
+    # a "Listening at frequency:" heartbeat before any real signals arrive.
+    # We strip these before fingerprinting so that protocol names appearing
+    # as filenames (e.g. "keeloq_mfcodes") don't cause false positives.
+    _PREAMBLE_PATTERNS = (
+        re.compile(r"^Load_keystore\s+\S+\s+\S+$", re.MULTILINE),
+        re.compile(r"^Listening at frequency:.*$", re.MULTILINE),
+        re.compile(r"^Packets received\s+\d+\s*$", re.MULTILINE),
+    )
+
+    @classmethod
+    def _strip_preamble(cls, text: str) -> str:
+        for pat in cls._PREAMBLE_PATTERNS:
+            text = pat.sub("", text)
+        return text
+
     def fingerprint(self, text: str, category: Optional[str] = None) -> list[Match]:
         """Return matches for every protocol whose patterns hit in ``text``.
 
         Matching is case-insensitive + multi-line. Each protocol matches at
         most once (first pattern wins), and decoder fields are extracted
-        from the same text.
+        from the same text. Boilerplate from the Flipper's CLI (keystore
+        loads, "Listening at..." heartbeat, "Packets received N" trailer)
+        is stripped before matching.
         """
+        cleaned = self._strip_preamble(text)
+
         matches: list[Match] = []
         for proto in self.list(category=category):
             hit_pattern: Optional[str] = None
             for pattern in proto.fingerprint.regex_patterns:
-                if re.search(pattern, text, flags=re.IGNORECASE | re.MULTILINE):
+                if re.search(pattern, cleaned, flags=re.IGNORECASE | re.MULTILINE):
                     hit_pattern = pattern
                     break
             if hit_pattern is None:
@@ -162,7 +182,7 @@ class Registry:
 
             fields: dict[str, str] = {}
             for fname, fdef in proto.decoder.fields.items():
-                m = re.search(fdef.regex, text)
+                m = re.search(fdef.regex, cleaned)
                 if m and m.groups():
                     fields[fname] = m.group(1).strip()
 
