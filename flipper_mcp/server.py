@@ -22,6 +22,7 @@ from mcp.server.fastmcp import FastMCP
 from .bridge import FlipperBridge
 from .registry import (
     bundled_protocols,
+    classify_file,
     fetch_index,
     get_registry,
     install_from_entry,
@@ -198,9 +199,17 @@ def ir_tx(protocol: str, address: str, command: str) -> str:
     """Transmit an IR signal using a known protocol.
 
     protocol: NEC, NECext, Samsung32, RC5, RC6, Sony, etc.
-    address / command: hex strings, e.g. "0x04 0x00 0x00 0x00" for address.
+    address / command: accept either space-separated bytes as saved in .ir
+    files ("EA C7 00 00") or pre-concatenated hex ("EAC70000"). Spaces are
+    stripped automatically so the CLI receives single-arg hex strings.
+
+    NOTE: requires the firmware's ``cli_ir.fal`` plugin to be loaded. If
+    this returns "failed to load external command", refresh the firmware
+    via qFlipper to update the external CLI plugins.
     """
-    return _get_bridge().send(f"ir tx {protocol} {address} {command}")
+    addr = address.replace(" ", "").lstrip("0x").lstrip("0X")
+    cmd = command.replace(" ", "").lstrip("0x").lstrip("0X")
+    return _get_bridge().send(f"ir tx {protocol} {addr} {cmd}")
 
 
 # -- system -----------------------------------------------------------------
@@ -237,6 +246,233 @@ def led(r: int = 0, g: int = 0, b: int = 0) -> str:
 def vibro(on: bool) -> str:
     """Pulse the vibration motor on or off."""
     return _get_bridge().send(f"vibro {1 if on else 0}")
+
+
+# -- storage mutation (v0.4) -----------------------------------------------
+
+
+@mcp.tool()
+def storage_write(path: str, content: str) -> str:
+    """Write text content to a file on the Flipper's SD card.
+
+    Uses ``storage write <path>`` which reads until Ctrl-C. Best for small
+    text files (config, ducky scripts, notes). Binary content is not
+    supported via this path — use SD card mount for that.
+    """
+    return _get_bridge().write_file(path, content)
+
+
+@mcp.tool()
+def storage_remove(path: str) -> str:
+    """Delete a file or empty directory on the Flipper."""
+    return _get_bridge().send(f"storage remove {path}")
+
+
+@mcp.tool()
+def storage_mkdir(path: str) -> str:
+    """Create a new directory on the Flipper."""
+    return _get_bridge().send(f"storage mkdir {path}")
+
+
+@mcp.tool()
+def storage_rename(old_path: str, new_path: str) -> str:
+    """Rename or move a file/directory on the Flipper."""
+    return _get_bridge().send(f"storage rename {old_path} {new_path}")
+
+
+@mcp.tool()
+def storage_md5(path: str) -> str:
+    """Compute the MD5 checksum of a file on the Flipper (firmware-side)."""
+    return _get_bridge().send(f"storage md5 {path}")
+
+
+# -- SubGHz raw capture (v0.4) ---------------------------------------------
+
+
+@mcp.tool()
+def subghz_rx_raw(frequency_hz: int, duration_s: float = 10.0) -> str:
+    """Capture raw pulse timings on a SubGHz frequency, no decoding.
+
+    Unlike ``subghz_rx`` (which only emits when a known protocol decodes),
+    ``rx_raw`` dumps pulse durations continuously. Useful for signals the
+    firmware can't decode — proprietary RKE, unusual framing, etc. The
+    output is a stream of ``+<us> -<us>`` pairs representing pulse / gap
+    durations in microseconds.
+
+    Note: the ``subghz rx_raw`` CLI command does not accept a device arg,
+    so this always uses the internal CC1101.
+    """
+    return _get_bridge().stream(f"subghz rx_raw {frequency_hz}", duration_s)
+
+
+@mcp.tool()
+def subghz_chat(
+    frequency_hz: int = 433920000,
+    duration_s: float = 30.0,
+    device: Optional[int] = None,
+) -> str:
+    """Listen on SubGHz chat mode — receive broadcast messages from other Flippers."""
+    dev = device if device is not None else _DEFAULT_DEVICE
+    return _get_bridge().stream(f"subghz chat {frequency_hz} {dev}", duration_s)
+
+
+# -- RFID / iButton (v0.4) -------------------------------------------------
+
+
+@mcp.tool()
+def rfid_read(duration_s: float = 10.0) -> str:
+    """Scan for 125 kHz LF-RFID cards for `duration_s` seconds.
+
+    Requires ``cli_rfid.fal`` plugin loaded on the firmware.
+    """
+    return _get_bridge().stream("rfid read", duration_s)
+
+
+@mcp.tool()
+def ibutton_read(duration_s: float = 10.0) -> str:
+    """Scan for iButton / 1-Wire keys for `duration_s` seconds."""
+    return _get_bridge().stream("ikey read", duration_s)
+
+
+# -- GPIO (v0.4) -----------------------------------------------------------
+
+
+@mcp.tool()
+def gpio_read(pin: str) -> str:
+    """Read the current digital state of a GPIO pin.
+
+    pin: one of PA4, PA6, PA7, PB2, PB3, PC0, PC1, PC3 (Flipper naming).
+    """
+    return _get_bridge().send(f"gpio get {pin}")
+
+
+@mcp.tool()
+def gpio_write(pin: str, value: int) -> str:
+    """Set a GPIO pin high (1) or low (0). Pin is configured as output."""
+    return _get_bridge().send(f"gpio set {pin} {int(bool(value))}")
+
+
+@mcp.tool()
+def gpio_mode(pin: str, mode: str) -> str:
+    """Configure a GPIO pin's direction/mode.
+
+    mode: typically 'input', 'output', or firmware-specific string.
+    """
+    return _get_bridge().send(f"gpio mode {pin} {mode}")
+
+
+# -- Loader / app control (v0.4) -------------------------------------------
+
+
+@mcp.tool()
+def loader_open(app_path_or_id: str) -> str:
+    """Launch an app on the Flipper by path or built-in ID.
+
+    Examples:
+      loader_open("Sub-GHz")                      # built-in Sub-GHz app
+      loader_open("/ext/apps/Infrared/flipper_xremote.fap")  # external .fap
+
+    Closes any currently running app first if needed. This is how an agent
+    can kick off the on-device Read app for the user without them touching
+    the Flipper.
+    """
+    return _get_bridge().send(f"loader open {app_path_or_id}", timeout=15.0)
+
+
+@mcp.tool()
+def loader_close() -> str:
+    """Close the currently running app on the Flipper."""
+    return _get_bridge().send("loader close")
+
+
+@mcp.tool()
+def loader_info() -> str:
+    """Show what app is currently running on the Flipper."""
+    return _get_bridge().send("loader info")
+
+
+@mcp.tool()
+def loader_list() -> str:
+    """List all built-in apps launchable via ``loader open``."""
+    return _get_bridge().send("loader list")
+
+
+# -- Recovery + introspection (v0.4) ---------------------------------------
+
+
+@mcp.tool()
+def flipper_interrupt() -> str:
+    """Send a Ctrl-C to the Flipper CLI to recover from a stuck streaming command.
+
+    Use this if you suspect an earlier ``flipper_cli`` call left the Flipper
+    in a listening state (no terminating Ctrl-C was sent).
+    """
+    return _get_bridge().interrupt()
+
+
+@mcp.tool()
+def flipper_file_inspect(path: str) -> dict:
+    """Read a file on the Flipper and classify it by its Filetype header.
+
+    Recognizes Flipper save files (SubGHz raw/parsed, NFC, IR, LF-RFID,
+    iButton) and returns structured metadata — frequency, preset, protocol
+    name, UID, etc. For parsed-protocol files, also runs the registry
+    fingerprinter on the body.
+
+    This is the fastest way to tell the agent what's in a saved capture
+    without requiring the Flipper firmware to re-decode it.
+    """
+    content = _get_bridge().send(f"storage read {path}", timeout=30.0)
+    meta = classify_file(content)
+    meta["path"] = path
+
+    # If the file names a protocol, also fingerprint the content in case
+    # our registry can add security notes / typical_devices metadata.
+    category_map = {
+        "subghz_parsed": "subghz",
+        "subghz_raw": "subghz",
+        "ir": "ir",
+        "nfc": "nfc",
+        "lfrfid": "lfrfid",
+        "ibutton": "ibutton",
+    }
+    reg_cat = category_map.get(meta.get("kind", ""))
+    if reg_cat is not None:
+        matches = get_registry().fingerprint(content, category=reg_cat)
+        meta["registry_matches"] = [m.to_dict() for m in matches]
+    return meta
+
+
+@mcp.tool()
+def list_installed_apps() -> dict:
+    """Enumerate installed FAP apps under ``/ext/apps/*/*.fap``.
+
+    Returns apps grouped by category directory. Useful for agent
+    discovery — e.g. "what Sub-GHz tools does this Flipper have available?"
+    """
+    b = _get_bridge()
+    categories = b.send("storage list /ext/apps")
+    result: dict = {"categories": {}, "total_apps": 0}
+
+    for line in categories.splitlines():
+        line = line.strip()
+        if not line.startswith("[D]"):
+            continue
+        cat = line.split(maxsplit=1)[1].strip()
+        if cat.startswith("."):
+            continue
+        listing = b.send(f"storage list /ext/apps/{cat}")
+        faps: list[str] = []
+        for inner in listing.splitlines():
+            inner = inner.strip()
+            if inner.startswith("[F]"):
+                name = inner.split(maxsplit=1)[1].strip().split()[0]
+                if name.endswith(".fap"):
+                    faps.append(name)
+        if faps:
+            result["categories"][cat] = sorted(faps)
+            result["total_apps"] += len(faps)
+    return result
 
 
 # -- registry (L2) ---------------------------------------------------------

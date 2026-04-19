@@ -223,6 +223,41 @@ class FlipperBridge:
         self._wait_quiet(post_timeout, quiet_ms)
         return self._clean(self._snapshot(), cmd)
 
+    def interrupt(self) -> str:
+        """Send a lone Ctrl-C to recover from a stuck streaming command.
+
+        Useful when an earlier call left the Flipper in a listening state
+        (e.g. ``subghz rx_raw`` invoked via ``flipper_cli`` without a
+        terminating Ctrl-C). Returns whatever output the CLI emits while
+        closing out.
+        """
+        self._drain()
+        self._write("\x03")
+        self._wait_quiet(timeout=2.0, quiet_ms=200)
+        return self._clean(self._snapshot())
+
+    def write_file(
+        self,
+        path: str,
+        content: str,
+        end_timeout: float = 3.0,
+    ) -> str:
+        """Write text content to a file on the Flipper via the CLI.
+
+        Uses ``storage write <path>`` which reads stdin until Ctrl-C. Small
+        text files only — not suitable for binary payloads or large files.
+        """
+        self._drain()
+        self._write(f"storage write {path}\r\n")
+        # Give the Flipper a moment to open the file and start reading
+        time.sleep(0.3)
+        self._write(content)
+        if not content.endswith("\n"):
+            self._write("\n")
+        self._write("\x03")  # end write session
+        self._wait_quiet(timeout=end_timeout, quiet_ms=300)
+        return self._clean(self._snapshot())
+
 
 # ---------------------------------------------------------------------------
 # Smoke test entry point — `flipper-smoke` or `python -m flipper_mcp.bridge`.

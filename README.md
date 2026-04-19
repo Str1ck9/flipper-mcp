@@ -26,8 +26,8 @@ couldn't unlock.
 
 | Layer | What | Status |
 |---|---|---|
-| **L1** | USB-CDC bridge + MCP tools (info, storage, SubGHz/IR/NFC capture, LED, vibro) | ✅ working, validated on real hardware |
-| **L2** | Protocol registry — 13 bundled entries, fingerprinter, `scan_and_identify` | ✅ working |
+| **L1** | USB-CDC bridge + 45 MCP tools (info, storage r/w, SubGHz/IR/NFC/RFID/iButton/GPIO/loader, LED, vibro) | ✅ working, validated on real hardware |
+| **L2** | Protocol registry — 13 bundled entries, regex fingerprinter, file-header classifier | ✅ working |
 | **L3** | Remote registry sync — fetch signed protocol JSON on demand into a user cache | ✅ working |
 | **CLI** | `flipper-registry` for cache management and JSON validation | ✅ working |
 
@@ -94,16 +94,43 @@ Edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
 | `storage_read(path)` | Read a file's contents |
 | `storage_stat(path)` | File/dir metadata |
 | `storage_info(path)` | Free / total space |
+| `storage_write(path, content)` | Write text content to a file |
+| `storage_remove(path)` | Delete a file or empty directory |
+| `storage_mkdir(path)` | Create a directory |
+| `storage_rename(old, new)` | Rename / move |
+| `storage_md5(path)` | MD5 checksum (firmware-side) |
 
 ### Radio
 | Tool | Purpose |
 |---|---|
-| `subghz_rx(frequency_hz, duration_s)` | Listen for RF signals |
+| `subghz_rx(frequency_hz, duration_s, device)` | Listen for RF signals (decoded protocols) |
+| `subghz_rx_raw(frequency_hz, duration_s)` | **Raw pulse capture** for signals the firmware can't decode |
 | `subghz_tx_from_file(sub_file_path)` | Transmit a saved `.sub` file |
-| `subghz_decode_raw(sub_file_path)` | Decode a raw capture |
+| `subghz_decode_raw(sub_file_path, duration_s)` | Decode a raw capture |
+| `subghz_chat(frequency_hz, duration_s, device)` | Flipper-to-Flipper chat receive |
 | `nfc_detect(duration_s)` | Scan for NFC tags |
+| `rfid_read(duration_s)` | Scan 125 kHz LF-RFID |
+| `ibutton_read(duration_s)` | Scan iButton / 1-Wire |
 | `ir_rx(duration_s)` | Listen for IR |
 | `ir_tx(protocol, address, command)` | Transmit an IR command |
+
+### GPIO
+| Tool | Purpose |
+|---|---|
+| `gpio_read(pin)` | Read digital state of a GPIO pin |
+| `gpio_write(pin, value)` | Drive a pin high/low |
+| `gpio_mode(pin, mode)` | Configure pin direction |
+
+### App control / introspection
+| Tool | Purpose |
+|---|---|
+| `loader_open(app_path_or_id)` | Launch a built-in or external FAP on the Flipper |
+| `loader_close()` | Close the currently running app |
+| `loader_info()` | What app is running right now |
+| `loader_list()` | List built-in launchable apps |
+| `list_installed_apps()` | Enumerate `/ext/apps/*/*.fap` grouped by category |
+| `flipper_file_inspect(path)` | Classify a save file by its `Filetype:` header + metadata |
+| `flipper_interrupt()` | Send a Ctrl-C to recover from a stuck streaming command |
 
 ### Physical
 | Tool | Purpose |
@@ -239,6 +266,32 @@ in `flipper_info` output — mine is `US`, yours may differ.
 Make sure the Flipper isn't locked mid-capture, and that nothing else holds
 the port. For weak signals, extend `duration_s` and try known-good
 transmitters (car fob at close range).
+
+**"failed to load external command" on `ir`, `nfc`, `rfid`, or `ikey`**
+Recent Flipper firmware ships some CLI commands as external plugins
+(`cli_ir.fal`, `cli_nfc.fal`, `cli_rfid.fal`, etc.) under
+`/ext/apps_data/cli/plugins/`. If these plugins were left from an older
+firmware install, the ABI won't match and loading will fail even though
+the on-device apps still work. Fix: open **qFlipper**, reinstall / update
+the firmware — this refreshes the external plugins.
+
+**`scan_and_identify` returns 0 packets even though the fob works**
+The Flipper's `subghz rx` CLI only prints output when a *known* protocol
+decoder matches. Proprietary RKE (Honda, Toyota post-2013, some Fords)
+isn't in stock firmware's decoder list. Workarounds:
+
+- Use `subghz_rx_raw` to capture pulse timings regardless of decode success
+- Install a community firmware with broader decoder coverage
+  ([Momentum](https://momentum-fw.dev/),
+  [RogueMaster](https://github.com/RogueMaster/flipperzero-firmware-wPlugins),
+  [Xtreme](https://github.com/ClaraCrazy/Flipper-Xtreme))
+- Use the on-device Sub-GHz Read app (falls back to RAW save) and then
+  `flipper_file_inspect` the saved file
+
+**CLI `subghz rx` uses `Ook650Async`; on-device Read uses `Ook270Async`**
+The 650 kHz bandwidth default is looser than what the Read app uses, so
+weak OOK signals may be missed via the CLI. There's currently no way to
+switch presets via the stock CLI; planned for a future release.
 
 ## Development
 

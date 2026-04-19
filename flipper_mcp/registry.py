@@ -196,6 +196,78 @@ class Registry:
         return matches
 
 
+# ---------------------------------------------------------------------------
+# File-header classifier — identifies Flipper save files by their Filetype
+# header and extracts structured metadata. Complements the regex fingerprinter
+# for the common case where a file wasn't decoded into a named protocol
+# (Protocol: RAW) but we still want to tell the agent what it is.
+# ---------------------------------------------------------------------------
+
+
+FLIPPER_FILE_TYPES = {
+    "Flipper SubGhz RAW File": "subghz_raw",
+    "Flipper SubGhz Key File": "subghz_parsed",
+    "Flipper NFC device": "nfc",
+    "IR signals file": "ir",
+    "Flipper RFID key": "lfrfid",
+    "Flipper iButton key": "ibutton",
+}
+
+
+def _extract_kv(content: str, key: str) -> Optional[str]:
+    m = re.search(rf"^{re.escape(key)}\s*:\s*(.+?)$", content, re.MULTILINE)
+    return m.group(1).strip() if m else None
+
+
+def classify_file(content: str) -> dict:
+    """Parse a Flipper save file's header and return structured metadata.
+
+    Recognizes SubGHz (raw + parsed), NFC, IR, LF-RFID, and iButton files.
+    For decoded-protocol files, the protocol is surfaced as ``protocol_named``.
+    Returns an empty dict's kind=unknown shape if the file isn't a Flipper
+    save file.
+    """
+    filetype = _extract_kv(content, "Filetype")
+    if filetype is None:
+        return {"kind": "unknown", "note": "no Filetype header found"}
+
+    kind = FLIPPER_FILE_TYPES.get(filetype, "unknown")
+    result: dict = {
+        "kind": kind,
+        "filetype": filetype,
+        "version": _extract_kv(content, "Version"),
+    }
+
+    if kind.startswith("subghz"):
+        result["frequency_hz"] = _int_or_none(_extract_kv(content, "Frequency"))
+        result["preset"] = _extract_kv(content, "Preset")
+        result["protocol_named"] = _extract_kv(content, "Protocol")
+    elif kind == "ir":
+        result["protocol_named"] = _extract_kv(content, "protocol")
+        result["ir_signal_type"] = _extract_kv(content, "type")
+        result["frequency_hz"] = _int_or_none(_extract_kv(content, "frequency"))
+    elif kind == "nfc":
+        result["device_type"] = _extract_kv(content, "Device type")
+        result["uid"] = _extract_kv(content, "UID")
+    elif kind == "lfrfid":
+        result["key_type"] = _extract_kv(content, "Key type")
+        result["data"] = _extract_kv(content, "Data")
+    elif kind == "ibutton":
+        result["key_type"] = _extract_kv(content, "Key type")
+        result["data"] = _extract_kv(content, "Data")
+
+    return result
+
+
+def _int_or_none(s: Optional[str]) -> Optional[int]:
+    if s is None:
+        return None
+    try:
+        return int(s)
+    except (TypeError, ValueError):
+        return None
+
+
 # Singleton — loaded on first call, resettable after mutating the cache.
 _registry: Optional[Registry] = None
 
