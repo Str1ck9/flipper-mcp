@@ -1,0 +1,30 @@
+{
+  "id": "samsung32-ir",
+  "name": "Samsung32 Infrared",
+  "category": "ir",
+  "typical_frequencies_hz": [38000],
+  "modulation": "PWM",
+  "fingerprint": {
+    "regex_patterns": [
+      "Samsung\\s*32",
+      "Protocol:\\s*Samsung",
+      "\\bSamsung32\\b"
+    ]
+  },
+  "decoder": {
+    "fields": {
+      "address": {"regex": "A(?:ddress)?:\\s*((?:0x)?[0-9a-fA-F ]+)"},
+      "command": {"regex": "C(?:ommand)?:\\s*((?:0x)?[0-9a-fA-F ]+)"}
+    }
+  },
+  "typical_devices": [
+    "Samsung TVs",
+    "Samsung soundbars",
+    "Samsung Blu-ray / DVD players"
+  ],
+  "security_notes": "Not a security protocol. Trivially replayable by design.",
+  "references": [
+    "https://docs.flipper.net/infrared"
+  ],
+  "packs": []
+}

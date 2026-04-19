@@ -20,14 +20,21 @@ No cloud, no proprietary magic. Everything happens on your machine.
 **Isn't:** a hacking tool. It doesn't unlock anything the Flipper itself
 couldn't unlock.
 
+[![CI](https://github.com/Str1ck9/flipper-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/Str1ck9/flipper-mcp/actions/workflows/ci.yml)
+
 ## Status
 
 | Layer | What | Status |
 |---|---|---|
-| **L1** | USB-CDC bridge + 18 MCP tools (info, storage, SubGHz/IR/NFC capture, LED, vibro) | ✅ working |
-| **L2** | Protocol registry — 6 seed entries, fingerprinter, `scan_and_identify` | ✅ working |
-| **L3** | Remote registry sync (fetch new decoders on demand) | ⏳ planned |
+| **L1** | USB-CDC bridge + MCP tools (info, storage, SubGHz/IR/NFC capture, LED, vibro) | ✅ working, validated on real hardware |
+| **L2** | Protocol registry — 13 bundled entries, fingerprinter, `scan_and_identify` | ✅ working |
+| **L3** | Remote registry sync — fetch signed protocol JSON on demand into a user cache | ✅ working |
+| **CLI** | `flipper-registry` for cache management and JSON validation | ✅ working |
 | **Pack** | FleetRF — paratransit / fleet RF surfaces (garage, gate, TPMS, lift remotes) | 🌱 seeded, accepting contributions |
+
+**Bundled protocols (13):** Princeton, KeeLoq, CAME Atomo, Nice FLO, Hormann
+HSM, FAAC SLH, Security+ 2.0, HT12, TPMS (generic), NEC IR, Samsung32 IR,
+Sony SIRC, EM4100.
 
 ## Install
 
@@ -110,8 +117,30 @@ Edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
 |---|---|
 | `registry_list(category, pack)` | Browse known protocols |
 | `registry_describe(protocol_id)` | Full entry for one protocol |
-| `scan_and_identify(frequency_hz, duration_s)` | Capture + fingerprint in one step |
+| `scan_and_identify(frequency_hz, duration_s, device)` | Capture + fingerprint in one step |
 | `ir_scan_and_identify(duration_s)` | Same, for IR |
+
+### Remote registry sync (L3)
+| Tool | Purpose |
+|---|---|
+| `registry_status` | Show bundled + installed protocols, cache location |
+| `registry_fetch_index(index_url)` | List protocols available in a remote index |
+| `registry_install(index_url, protocol_id)` | Download, SHA-256 verify, install into user cache |
+| `registry_remove(protocol_id)` | Remove a user-installed protocol |
+
+### CLI
+
+The same surface is exposed as a shell command for humans:
+
+```bash
+flipper-registry status
+flipper-registry list --pack fleetrf
+flipper-registry describe princeton
+flipper-registry index https://example.com/index.json
+flipper-registry install https://example.com/index.json <protocol-id>
+flipper-registry remove <protocol-id>
+flipper-registry validate my-new-protocol.json
+```
 
 ## The registry
 
@@ -121,9 +150,37 @@ frequencies, modulation, fingerprint patterns (regexes matched against the
 Flipper's decoded-signal output), expected devices, and a plain-English
 security note.
 
-Seeded with: Princeton (PT2262/EV1527), KeeLoq (HCS200/301), CAME Atomo,
-Nice FLO, NEC IR, generic TPMS. Contributions are welcome — PR a new JSON
-file with fingerprint regexes and typical-device metadata.
+Ships with 13 entries covering common SubGHz / IR / RFID protocols.
+Contributions are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) for the
+schema, sample capture workflow, and PR checklist.
+
+### Remote index format
+
+`registry_fetch_index` / `flipper-registry index <URL>` expects a JSON file
+shaped like:
+
+```jsonc
+{
+  "schema_version": 1,
+  "name": "my-flipper-registry",
+  "description": "Community-curated extra protocols",
+  "protocols": [
+    {
+      "id": "my-new-protocol",
+      "url": "https://example.com/my-new-protocol.json",
+      "sha256": "aabbcc...",         // optional; enforced if present
+      "version": 1,
+      "name": "My New Protocol",
+      "category": "subghz",
+      "packs": ["garage"]
+    }
+  ]
+}
+```
+
+Install path (one entry): `$XDG_DATA_HOME/flipper-mcp/protocols/<id>.json`
+or `~/.local/share/flipper-mcp/protocols/<id>.json`. User-cached entries
+override bundled entries with the same `id`.
 
 ### Schema
 

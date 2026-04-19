@@ -1,0 +1,32 @@
+{
+  "id": "hormann-hsm",
+  "name": "Hormann HSM2 / HSM4 (BiSecur)",
+  "category": "subghz",
+  "typical_frequencies_hz": [433920000, 868350000],
+  "modulation": "AM_OOK",
+  "typical_bit_rate": 2000,
+  "fingerprint": {
+    "regex_patterns": [
+      "Hormann",
+      "BiSecur",
+      "HSM[24]"
+    ]
+  },
+  "decoder": {
+    "fields": {
+      "key": {"regex": "Key:\\s*(0x[0-9a-fA-F]+)"},
+      "sn": {"regex": "Sn:\\s*(0x[0-9a-fA-F]+)"},
+      "cnt": {"regex": "Cnt:\\s*(0x[0-9a-fA-F]+)"}
+    }
+  },
+  "typical_devices": [
+    "Hormann garage door openers (European market)",
+    "Hormann industrial door controllers",
+    "Hormann BiSecur remotes"
+  ],
+  "security_notes": "Rolling code. BiSecur is AES-128 based and considered strong; older HSM2/HSM4 variants use proprietary rolling code with known weaknesses.",
+  "references": [
+    "https://en.wikipedia.org/wiki/H%C3%B6rmann_Group"
+  ],
+  "packs": ["garage", "access-control"]
+}

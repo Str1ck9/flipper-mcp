@@ -20,7 +20,16 @@ from typing import Optional
 from mcp.server.fastmcp import FastMCP
 
 from .bridge import FlipperBridge
-from .registry import get_registry
+from .registry import (
+    bundled_protocols,
+    fetch_index,
+    get_registry,
+    install_from_entry,
+    installed_protocols,
+    reset_registry,
+    uninstall_from_cache,
+    user_cache_dir,
+)
 
 mcp = FastMCP("flipper")
 
@@ -110,19 +119,26 @@ def storage_stat(path: str) -> str:
 
 
 @mcp.tool()
-def subghz_rx(frequency_hz: int, duration_s: float = 10.0) -> str:
+def subghz_rx(
+    frequency_hz: int,
+    duration_s: float = 10.0,
+    device: int = 0,
+) -> str:
     """Listen on SubGHz for `duration_s` seconds and return captured signals.
 
-    frequency_hz: center frequency in hertz.
+    frequency_hz: center frequency in hertz. Flipper rounds to the nearest
+    valid channel (e.g. 433920000 -> 433919830).
       315 MHz -> 315000000   (older US car fobs, garage doors)
       433.92 MHz -> 433920000 (most key fobs, weather stations, TPMS EU)
       868 MHz -> 868000000   (EU ISM, smart meters, some alarm systems)
       915 MHz -> 915000000   (US ISM, LoRa US, industrial telemetry)
 
-    The Flipper's CC1101 is restricted to regional bands — check your
-    firmware's allowed ranges if a frequency is rejected.
+    device: 0 = internal CC1101 (default), 1 = external CC1101 module.
+
+    The Flipper's CC1101 is restricted to regional bands — check
+    `hardware_region_provisioned` in `flipper_info` if a frequency is rejected.
     """
-    return _get_bridge().stream(f"subghz rx {frequency_hz}", duration_s)
+    return _get_bridge().stream(f"subghz rx {frequency_hz} {device}", duration_s)
 
 
 @mcp.tool()
@@ -131,17 +147,13 @@ def subghz_tx_from_file(sub_file_path: str) -> str:
 
     Example path: /ext/subghz/garage.sub
     """
-    return _get_bridge().send(
-        f"subghz tx_from_file {sub_file_path}", timeout=30.0
-    )
+    return _get_bridge().send(f"subghz tx_from_file {sub_file_path}", timeout=30.0)
 
 
 @mcp.tool()
 def subghz_decode_raw(sub_file_path: str) -> str:
     """Attempt to decode a raw .sub capture into a known protocol."""
-    return _get_bridge().send(
-        f"subghz decode_raw {sub_file_path}", timeout=30.0
-    )
+    return _get_bridge().send(f"subghz decode_raw {sub_file_path}", timeout=30.0)
 
 
 # -- NFC / RFID -------------------------------------------------------------
@@ -251,7 +263,9 @@ def registry_describe(protocol_id: str) -> dict:
 
 @mcp.tool()
 def scan_and_identify(
-    frequency_hz: int, duration_s: float = 15.0
+    frequency_hz: int,
+    duration_s: float = 15.0,
+    device: int = 0,
 ) -> dict:
     """Listen on SubGHz, then fingerprint the capture against the registry.
 
@@ -260,12 +274,14 @@ def scan_and_identify(
     protocol. Returns both the raw text (for human review) and the
     structured matches with decoded fields and metadata.
 
+    device: 0 = internal CC1101 (default), 1 = external CC1101 module.
+
     Examples:
       frequency_hz=433920000 duration_s=15   # common key fobs / garage remotes
       frequency_hz=315000000 duration_s=15   # older US garage / gate remotes
       frequency_hz=868000000 duration_s=15   # EU ISM (smart meters, alarms)
     """
-    raw = _get_bridge().stream(f"subghz rx {frequency_hz}", duration_s)
+    raw = _get_bridge().stream(f"subghz rx {frequency_hz} {device}", duration_s)
     matches = get_registry().fingerprint(raw, category="subghz")
     return {
         "frequency_hz": frequency_hz,
@@ -286,6 +302,92 @@ def ir_scan_and_identify(duration_s: float = 10.0) -> dict:
         "match_count": len(matches),
         "matches": [m.to_dict() for m in matches],
         "raw_output": raw,
+    }
+
+
+# -- remote registry sync (L3 proper) --------------------------------------
+
+
+@mcp.tool()
+def registry_status() -> dict:
+    """Show registry state: bundled protocols, user-installed, cache location."""
+    return {
+        "bundled_count": len(bundled_protocols()),
+        "bundled": bundled_protocols(),
+        "user_installed_count": len(installed_protocols()),
+        "user_installed": installed_protocols(),
+        "cache_dir": str(user_cache_dir()),
+        "total_loaded": len(get_registry().all()),
+    }
+
+
+@mcp.tool()
+def registry_fetch_index(index_url: str) -> list[dict]:
+    """Fetch a remote registry index and list what's available.
+
+    index_url: HTTPS URL to a JSON index file following the flipper-rf-registry
+    schema (see CONTRIBUTING.md). Each entry in the returned list flags whether
+    the protocol is already bundled or installed.
+    """
+    idx = fetch_index(index_url)
+    have_bundled = set(bundled_protocols())
+    have_installed = set(installed_protocols())
+    return [
+        {
+            "id": e.id,
+            "name": e.name,
+            "category": e.category,
+            "url": e.url,
+            "sha256": e.sha256,
+            "version": e.version,
+            "packs": e.packs,
+            "bundled": e.id in have_bundled,
+            "installed": e.id in have_installed,
+        }
+        for e in idx.protocols
+    ]
+
+
+@mcp.tool()
+def registry_install(index_url: str, protocol_id: str) -> dict:
+    """Install one protocol from a remote index into the user cache.
+
+    Downloads the JSON payload, verifies the SHA-256 checksum if present,
+    validates the schema, and drops it into ``user_cache_dir``. The new
+    protocol becomes visible to ``registry_list`` and ``scan_and_identify``
+    on the next call.
+    """
+    idx = fetch_index(index_url)
+    entry = next((e for e in idx.protocols if e.id == protocol_id), None)
+    if entry is None:
+        return {"error": f"Protocol '{protocol_id}' not found in index {index_url}"}
+    path = install_from_entry(entry)
+    reset_registry()
+    return {
+        "installed": protocol_id,
+        "path": str(path),
+        "sha256_verified": bool(entry.sha256),
+        "source_index": index_url,
+    }
+
+
+@mcp.tool()
+def registry_remove(protocol_id: str) -> dict:
+    """Remove a user-installed protocol from the cache.
+
+    Bundled protocols (shipped with the package) cannot be removed — this only
+    affects the user cache. Reloads the registry so the change takes effect
+    immediately.
+    """
+    removed = uninstall_from_cache(protocol_id)
+    if removed:
+        reset_registry()
+        return {"removed": protocol_id}
+    return {
+        "error": (
+            f"'{protocol_id}' is not in the user cache. "
+            "Bundled-only protocols cannot be removed."
+        )
     }
 
 

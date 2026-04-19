@@ -1,0 +1,31 @@
+{
+  "id": "sony-ir",
+  "name": "Sony SIRC (12/15/20-bit)",
+  "category": "ir",
+  "typical_frequencies_hz": [40000],
+  "modulation": "PWM",
+  "fingerprint": {
+    "regex_patterns": [
+      "\\bSIRC\\b",
+      "Protocol:\\s*Sony",
+      "\\bSony\\s?1[25]\\b",
+      "\\bSony20\\b"
+    ]
+  },
+  "decoder": {
+    "fields": {
+      "address": {"regex": "A(?:ddress)?:\\s*((?:0x)?[0-9a-fA-F ]+)"},
+      "command": {"regex": "C(?:ommand)?:\\s*((?:0x)?[0-9a-fA-F ]+)"}
+    }
+  },
+  "typical_devices": [
+    "Sony TVs",
+    "Sony audio receivers",
+    "Sony Blu-ray and PlayStation media remotes"
+  ],
+  "security_notes": "Not a security protocol. Trivially replayable by design.",
+  "references": [
+    "https://www.sbprojects.net/knowledge/ir/sirc.php"
+  ],
+  "packs": []
+}

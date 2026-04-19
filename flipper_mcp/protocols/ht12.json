@@ -1,0 +1,35 @@
+{
+  "id": "ht12",
+  "name": "Holtek HT12 (HT12E / HT12D)",
+  "category": "subghz",
+  "typical_frequencies_hz": [315000000, 433920000],
+  "modulation": "OOK",
+  "typical_bit_rate": 1500,
+  "fingerprint": {
+    "regex_patterns": [
+      "HT12",
+      "Holtek",
+      "HT12E",
+      "HT12D"
+    ],
+    "bit_length_range": [12, 12]
+  },
+  "decoder": {
+    "fields": {
+      "key": {"regex": "Key:\\s*(0x[0-9a-fA-F]+)"},
+      "address": {"regex": "A(?:ddress)?:\\s*(0x[0-9a-fA-F]+)"},
+      "data": {"regex": "D(?:ata)?:\\s*(0x[0-9a-fA-F]+)"}
+    }
+  },
+  "typical_devices": [
+    "cheap wireless doorbells",
+    "RC toys",
+    "older wireless switches / outlets",
+    "simple gate remotes"
+  ],
+  "security_notes": "Fixed-code, 12-bit address/data. Trivially replayable. Commonly used in hobby/toy RF.",
+  "references": [
+    "https://www.holtek.com/productdetail/-/vg/HT12E"
+  ],
+  "packs": []
+}

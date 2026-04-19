@@ -1,0 +1,36 @@
+{
+  "id": "security-plus-2",
+  "name": "Security+ 2.0 (Chamberlain / LiftMaster)",
+  "category": "subghz",
+  "typical_frequencies_hz": [315000000, 390000000],
+  "modulation": "FSK",
+  "typical_bit_rate": 3250,
+  "fingerprint": {
+    "regex_patterns": [
+      "Security\\s*\\+?\\s*2\\.?0",
+      "Security\\+2",
+      "LiftMaster",
+      "Chamberlain"
+    ]
+  },
+  "decoder": {
+    "fields": {
+      "fix": {"regex": "Fix:\\s*(0x[0-9a-fA-F]+)"},
+      "hop": {"regex": "Hop:\\s*(0x[0-9a-fA-F]+)"},
+      "sn": {"regex": "Sn:\\s*(0x[0-9a-fA-F]+)"},
+      "cnt": {"regex": "Cnt:\\s*(0x[0-9a-fA-F]+)"}
+    }
+  },
+  "typical_devices": [
+    "Chamberlain garage door openers (post-2011)",
+    "LiftMaster garage doors",
+    "Craftsman garage openers (made by Chamberlain)",
+    "commercial door operators"
+  ],
+  "security_notes": "Rolling code with strong crypto. The most common modern US garage protocol. Capture-replay fails against properly configured openers.",
+  "references": [
+    "https://github.com/argilo/secplus",
+    "https://www.chamberlaingroup.com/"
+  ],
+  "packs": ["fleetrf", "garage", "access-control"]
+}

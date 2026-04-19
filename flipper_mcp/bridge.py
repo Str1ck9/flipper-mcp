@@ -230,9 +230,7 @@ class FlipperBridge:
 
 
 def smoke() -> int:
-    parser = argparse.ArgumentParser(
-        description="Smoke test the Flipper USB bridge."
-    )
+    parser = argparse.ArgumentParser(description="Smoke test the Flipper USB bridge.")
     parser.add_argument(
         "--port",
         default=os.environ.get("FLIPPER_PORT"),

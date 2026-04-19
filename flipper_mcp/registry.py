@@ -13,13 +13,17 @@ that mild firmware-version differences in output wording don't cause misses.
 
 from __future__ import annotations
 
+import hashlib
 import importlib.resources
 import json
+import os
 import re
+import urllib.request
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 
 class Fingerprint(BaseModel):
@@ -83,7 +87,7 @@ class Registry:
 
     @classmethod
     def load_bundled(cls) -> "Registry":
-        """Load every protocol JSON bundled with the package."""
+        """Load only the protocols bundled with the package."""
         protos: list[Protocol] = []
         pkg = importlib.resources.files("flipper_mcp") / "protocols"
         for entry in pkg.iterdir():
@@ -91,6 +95,31 @@ class Registry:
                 data = json.loads(entry.read_text(encoding="utf-8"))
                 protos.append(Protocol(**data))
         return cls(protos)
+
+    @classmethod
+    def load(cls, include_user_cache: bool = True) -> "Registry":
+        """Load bundled protocols, overlaid with the user cache.
+
+        User-installed protocols with the same ``id`` as a bundled entry
+        override the bundled version. This is how remote-fetched updates
+        supersede the shipped defaults.
+        """
+        protos: dict[str, Protocol] = {}
+        pkg = importlib.resources.files("flipper_mcp") / "protocols"
+        for entry in pkg.iterdir():
+            if entry.name.endswith(".json"):
+                data = json.loads(entry.read_text(encoding="utf-8"))
+                p = Protocol(**data)
+                protos[p.id] = p
+        if include_user_cache:
+            cache = user_cache_dir()
+            if cache.is_dir():
+                for entry in cache.iterdir():
+                    if entry.name.endswith(".json"):
+                        data = json.loads(entry.read_text(encoding="utf-8"))
+                        p = Protocol(**data)
+                        protos[p.id] = p
+        return cls(list(protos.values()))
 
     # -- querying ----------------------------------------------------------
 
@@ -114,9 +143,7 @@ class Registry:
 
     # -- fingerprinting ----------------------------------------------------
 
-    def fingerprint(
-        self, text: str, category: Optional[str] = None
-    ) -> list[Match]:
+    def fingerprint(self, text: str, category: Optional[str] = None) -> list[Match]:
         """Return matches for every protocol whose patterns hit in ``text``.
 
         Matching is case-insensitive + multi-line. Each protocol matches at
@@ -149,12 +176,133 @@ class Registry:
         return matches
 
 
-# Singleton — loaded on first call.
+# Singleton — loaded on first call, resettable after mutating the cache.
 _registry: Optional[Registry] = None
 
 
 def get_registry() -> Registry:
     global _registry
     if _registry is None:
-        _registry = Registry.load_bundled()
+        _registry = Registry.load()
     return _registry
+
+
+def reset_registry() -> None:
+    """Force the next get_registry() call to reload from disk."""
+    global _registry
+    _registry = None
+
+
+# ---------------------------------------------------------------------------
+# Remote registry sync (L3) — fetch and install signed protocol JSON from a
+# trusted index URL into a per-user cache. Signature verification is stubbed
+# (sha256 only for now); the structure is ready for minisign/GPG later.
+# ---------------------------------------------------------------------------
+
+
+class RemoteProtocolEntry(BaseModel):
+    id: str
+    url: str
+    sha256: Optional[str] = None
+    version: int = 1
+    name: Optional[str] = None
+    category: Optional[str] = None
+    packs: list[str] = Field(default_factory=list)
+
+
+class RemoteIndex(BaseModel):
+    schema_version: int = 1
+    name: str = "flipper-rf-registry"
+    description: Optional[str] = None
+    protocols: list[RemoteProtocolEntry] = Field(default_factory=list)
+
+
+class RegistryError(RuntimeError):
+    pass
+
+
+def user_cache_dir() -> Path:
+    """Per-user cache path for installed protocols.
+
+    Honors XDG_DATA_HOME on Linux / macOS. Falls back to ``~/.local/share``.
+    """
+    xdg = os.environ.get("XDG_DATA_HOME")
+    base = Path(xdg) if xdg else Path.home() / ".local" / "share"
+    return base / "flipper-mcp" / "protocols"
+
+
+def fetch_index(url: str, timeout: float = 15.0) -> RemoteIndex:
+    """Download and parse a remote registry index."""
+    req = urllib.request.Request(
+        url, headers={"User-Agent": "flipper-mcp/0.3 (+registry-sync)"}
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310
+        data = json.loads(resp.read().decode("utf-8"))
+    try:
+        return RemoteIndex(**data)
+    except ValidationError as e:
+        raise RegistryError(f"Malformed registry index at {url}: {e}") from e
+
+
+def install_from_entry(entry: RemoteProtocolEntry, timeout: float = 15.0) -> Path:
+    """Download one protocol, verify sha256 if present, install into cache."""
+    req = urllib.request.Request(
+        entry.url,
+        headers={"User-Agent": "flipper-mcp/0.3 (+registry-sync)"},
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310
+        body = resp.read()
+
+    if entry.sha256:
+        actual = hashlib.sha256(body).hexdigest().lower()
+        expected = entry.sha256.lower()
+        if actual != expected:
+            raise RegistryError(
+                f"SHA-256 mismatch for {entry.id}: expected {expected}, got {actual}"
+            )
+
+    try:
+        proto_data = json.loads(body.decode("utf-8"))
+        Protocol(**proto_data)  # validate schema
+    except (ValidationError, json.JSONDecodeError) as e:
+        raise RegistryError(
+            f"Downloaded protocol {entry.id} failed validation: {e}"
+        ) from e
+
+    if proto_data.get("id") != entry.id:
+        raise RegistryError(
+            f"Entry id {entry.id!r} does not match payload id {proto_data.get('id')!r}"
+        )
+
+    cache = user_cache_dir()
+    cache.mkdir(parents=True, exist_ok=True)
+    path = cache / f"{entry.id}.json"
+    path.write_bytes(body)
+    return path
+
+
+def uninstall_from_cache(protocol_id: str) -> bool:
+    """Remove a cached protocol. Returns True if a file was removed."""
+    path = user_cache_dir() / f"{protocol_id}.json"
+    if path.exists():
+        path.unlink()
+        return True
+    return False
+
+
+def installed_protocols() -> list[str]:
+    """List protocol IDs currently installed in the user cache."""
+    cache = user_cache_dir()
+    if not cache.is_dir():
+        return []
+    return sorted(
+        entry.name[:-5] for entry in cache.iterdir() if entry.name.endswith(".json")
+    )
+
+
+def bundled_protocols() -> list[str]:
+    """List protocol IDs shipped with the package."""
+    pkg = importlib.resources.files("flipper_mcp") / "protocols"
+    return sorted(
+        entry.name[:-5] for entry in pkg.iterdir() if entry.name.endswith(".json")
+    )

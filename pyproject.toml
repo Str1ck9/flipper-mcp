@@ -1,6 +1,6 @@
 [project]
 name = "flipper-mcp"
-version = "0.2.0"
+version = "0.3.0"
 description = "MCP server for driving a Flipper Zero over USB-CDC serial, with a bundled RF/IR protocol registry."
 requires-python = ">=3.11"
 dependencies = [
@@ -17,6 +17,7 @@ dev = [
 [project.scripts]
 flipper-mcp = "flipper_mcp.server:run"
 flipper-smoke = "flipper_mcp.bridge:smoke"
+flipper-registry = "flipper_mcp.registry_cli:main"
 
 [build-system]
 requires = ["hatchling"]

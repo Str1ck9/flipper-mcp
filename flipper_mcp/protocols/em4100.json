@@ -1,0 +1,32 @@
+{
+  "id": "em4100",
+  "name": "EM4100 / EM4102 (125 kHz RFID)",
+  "category": "lfrfid",
+  "typical_frequencies_hz": [125000],
+  "modulation": "ASK",
+  "typical_bit_rate": 2000,
+  "fingerprint": {
+    "regex_patterns": [
+      "EM41[0-9]{2}",
+      "EM-Marin",
+      "EM4100"
+    ]
+  },
+  "decoder": {
+    "fields": {
+      "uid": {"regex": "(?:UID|Key|ID):\\s*([0-9A-Fa-f\\s:]+)"}
+    }
+  },
+  "typical_devices": [
+    "cheap 125 kHz access cards / key fobs",
+    "hotel laundry room cards",
+    "parking garage passes",
+    "some office building badges (older)"
+  ],
+  "security_notes": "Read-only UID, no encryption, trivially cloneable. Still very common in low-security access control.",
+  "references": [
+    "https://en.wikipedia.org/wiki/EM4100",
+    "https://docs.flipper.net/rfid"
+  ],
+  "packs": ["access-control"]
+}
