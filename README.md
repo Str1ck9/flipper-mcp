@@ -26,10 +26,16 @@ couldn't unlock.
 
 | Layer | What | Status |
 |---|---|---|
-| **L1** | USB-CDC bridge + 45 MCP tools (info, storage r/w, SubGHz/IR/NFC/RFID/iButton/GPIO/loader, LED, vibro) | ✅ working, validated on real hardware |
+| **L1** | USB-CDC bridge + 54 MCP tools (info, storage r/w, SubGHz/IR/NFC/RFID/iButton/GPIO/loader, LED, vibro, UI automation) | ✅ working, validated on real hardware |
 | **L2** | Protocol registry — 13 bundled entries, regex fingerprinter, file-header classifier | ✅ working |
 | **L3** | Remote registry sync — fetch signed protocol JSON on demand into a user cache | ✅ working |
+| **UI automation** | Synthetic button presses + workflow macros (Sub-GHz / NFC / Infrared read-start) | ✅ working |
 | **CLI** | `flipper-registry` for cache management and JSON validation | ✅ working |
+
+**Tested firmware:** Official 1.4.x. Should work on community firmwares
+(Momentum, RogueMaster, Xtreme) too — the CLI surface is compatible.
+Broader decoder coverage is a real reason to prefer a community build
+when working with proprietary vendor fobs (Honda, Toyota, etc.).
 
 **Bundled protocols (13):** Princeton, KeeLoq, CAME Atomo, Nice FLO, Hormann
 HSM, FAAC SLH, Security+ 2.0, HT12, TPMS (generic), NEC IR, Samsung32 IR,
@@ -131,6 +137,19 @@ Edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
 | `list_installed_apps()` | Enumerate `/ext/apps/*/*.fap` grouped by category |
 | `flipper_file_inspect(path)` | Classify a save file by its `Filetype:` header + metadata |
 | `flipper_interrupt()` | Send a Ctrl-C to recover from a stuck streaming command |
+
+### UI automation (v0.5)
+| Tool | Purpose |
+|---|---|
+| `flipper_press_key(key, press_type)` | Send a single synthetic keypress (short/long/press/release) |
+| `flipper_hold_key(key, duration_s)` | Press and hold for a wall-clock duration |
+| `flipper_input_sequence(sequence)` | Run a mini-DSL like `"ok,down,long:ok,wait:0.3,back"` |
+| `workflow_subghz_read_start()` | Launch Sub-GHz + navigate into Read (one tool call) |
+| `workflow_nfc_read_start()` | Launch NFC + navigate into Read |
+| `workflow_infrared_learn_start()` | Launch Infrared + navigate into Learn |
+| `workflow_close_app()` | Close any running app (returns Flipper to main screen) |
+| `ir_universal_list(category)` | List built-in universal-remote buttons (tv/audio/ac/fan) |
+| `ir_universal_send(category, button)` | Transmit a universal-remote button from the firmware's DB |
 
 ### Physical
 | Tool | Purpose |
@@ -305,6 +324,17 @@ pytest
 - [navcore.io's Pi.dev Flipper
   article](https://blog.navcore.io/AI-Agents/Giving-a-Pi.dev-Agent-Hands-on-a-Flipper-Zero) —
   the USB-CDC quiet-period trick is theirs, and it works.
+- [roostercoopllc/flipper-mcp](https://github.com/roostercoopllc/flipper-mcp) —
+  their ~30-tool inventory (running on an ESP32-S2 WiFi Dev Board) shaped
+  the v0.4 tool-surface expansion: storage write/remove, GPIO, loader, RFID,
+  iButton wrappers. Different architecture (wireless), same underlying
+  Flipper CLI, so the tool semantics port over one-for-one.
+- [Kinark/flipper-control-mcp](https://github.com/Kinark/flipper-control-mcp) —
+  the `input send`-driven on-device UI automation approach is theirs in
+  spirit; we adopted the idea and built the workflow macros on top.
+- [dudebot/flipper-mcp-bridge](https://github.com/dudebot/flipper-mcp-bridge) —
+  their focus on the Flipper's built-in universal-remote database inspired
+  the `ir_universal_list` / `ir_universal_send` tools.
 - The broader AI-on-Flipper landscape — FlipperClaw, V3SP3R, AgentFlipper,
   Gemini-Flipper, OpenFlip — that set the direction.
 

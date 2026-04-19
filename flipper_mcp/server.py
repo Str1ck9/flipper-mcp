@@ -31,6 +31,15 @@ from .registry import (
     uninstall_from_cache,
     user_cache_dir,
 )
+from .ui import (
+    close_any_running_app,
+    hold_key,
+    infrared_learn_start_ui,
+    nfc_read_start_ui,
+    press_key,
+    run_sequence,
+    subghz_read_start_ui,
+)
 
 mcp = FastMCP("flipper")
 
@@ -473,6 +482,135 @@ def list_installed_apps() -> dict:
             result["categories"][cat] = sorted(faps)
             result["total_apps"] += len(faps)
     return result
+
+
+# -- UI automation (v0.5) --------------------------------------------------
+
+
+@mcp.tool()
+def flipper_press_key(key: str, press_type: str = "short") -> str:
+    """Send a synthetic keypress to the Flipper UI.
+
+    key: one of up, down, left, right, ok, back (aliases like ``u``, ``enter``,
+    ``esc`` accepted).
+    press_type: short | long | press | release. Default ``short`` is a full
+    press-and-release, matching a normal button tap.
+    """
+    return press_key(_get_bridge(), key, press_type=press_type)
+
+
+@mcp.tool()
+def flipper_hold_key(key: str, duration_s: float) -> str:
+    """Press and hold a key for ``duration_s`` seconds, then release.
+
+    Uses explicit press/release events so the hold duration is wall-clock
+    accurate rather than firmware-preset.
+    """
+    return hold_key(_get_bridge(), key, duration_s)
+
+
+@mcp.tool()
+def flipper_input_sequence(sequence: str, step_delay_s: float = 0.05) -> list[str]:
+    """Run a mini-DSL sequence of keypresses / waits against the Flipper UI.
+
+    Syntax (comma-separated steps):
+      ``ok`` — short press OK
+      ``long:ok`` — long press OK
+      ``press:down`` — press-only event for Down (without release)
+      ``release:down`` — release-only event
+      ``wait:0.5`` — wall-clock delay of 0.5 seconds
+
+    Example: ``"ok,down,down,long:ok,wait:0.3,back"`` navigates two items
+    down, holds OK, waits 300 ms, then backs out.
+    """
+    return run_sequence(_get_bridge(), sequence, step_delay_s=step_delay_s)
+
+
+# -- workflow macros (v0.5) ------------------------------------------------
+
+
+@mcp.tool()
+def workflow_subghz_read_start() -> dict:
+    """Launch the Sub-GHz app and navigate into Read mode in one call.
+
+    Hands-free equivalent of: tap Sub-GHz → tap OK on "Read". The Flipper
+    remembers its last-used frequency, so this enters Read at whatever
+    frequency was configured last (use the app's arrow keys to change).
+    """
+    return subghz_read_start_ui(_get_bridge())
+
+
+@mcp.tool()
+def workflow_nfc_read_start() -> dict:
+    """Launch the NFC app and navigate into Read mode in one call."""
+    return nfc_read_start_ui(_get_bridge())
+
+
+@mcp.tool()
+def workflow_infrared_learn_start() -> dict:
+    """Launch the Infrared app and navigate into Learn New Remote."""
+    return infrared_learn_start_ui(_get_bridge())
+
+
+@mcp.tool()
+def workflow_close_app() -> dict:
+    """Close any app currently running on the Flipper; return to main screen.
+
+    Useful as a prologue before direct-radio CLI commands (``subghz rx``,
+    ``led``, ``vibro``) which fail with "app open" while any app owns
+    the UI / radio.
+    """
+    return close_any_running_app(_get_bridge())
+
+
+# -- universal IR database (v0.5) ------------------------------------------
+#
+# Flipper firmware ships a universal remote database covering common
+# categories (TV, AC, audio, fan) with named buttons like Power, VolUp,
+# Mute, etc. These tools wrap ``ir universal send <category> <button>``
+# so the agent can drive common electronics without needing saved codes.
+#
+# Requires ``cli_ir.fal`` plugin loaded — same "failed to load external
+# command" caveat as ir_tx applies.
+
+
+_UNIVERSAL_CATEGORIES = {"tv", "audio", "ac", "fan"}
+
+
+@mcp.tool()
+def ir_universal_list(category: str) -> str:
+    """List the buttons available for a universal-remote category.
+
+    category: tv | audio | ac | fan.
+    """
+    cat = category.lower().strip()
+    if cat not in _UNIVERSAL_CATEGORIES:
+        return (
+            f"error: unknown category {category!r}. "
+            f"Valid: {sorted(_UNIVERSAL_CATEGORIES)}."
+        )
+    return _get_bridge().send(f"ir universal list {cat}")
+
+
+@mcp.tool()
+def ir_universal_send(category: str, button: str) -> str:
+    """Transmit a universal-remote IR button from the firmware's built-in DB.
+
+    category: tv | audio | ac | fan.
+    button: a button name as returned by ``ir_universal_list`` — typical
+    values include ``Power``, ``VolUp``, ``VolDown``, ``Mute``, ``Ch+``,
+    ``Ch-``, ``Play``, ``Pause``. Case-sensitive on most firmwares.
+
+    Example: turn off any TV in range:
+        ir_universal_send(category="tv", button="Power")
+    """
+    cat = category.lower().strip()
+    if cat not in _UNIVERSAL_CATEGORIES:
+        return (
+            f"error: unknown category {category!r}. "
+            f"Valid: {sorted(_UNIVERSAL_CATEGORIES)}."
+        )
+    return _get_bridge().send(f"ir universal send {cat} {button}")
 
 
 # -- registry (L2) ---------------------------------------------------------
