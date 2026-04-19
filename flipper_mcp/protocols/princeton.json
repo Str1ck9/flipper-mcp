@@ -1,0 +1,37 @@
+{
+  "id": "princeton",
+  "name": "Princeton PT2262 / PT2260 / EV1527",
+  "category": "subghz",
+  "typical_frequencies_hz": [315000000, 433920000],
+  "modulation": "OOK",
+  "typical_bit_rate": 2000,
+  "fingerprint": {
+    "regex_patterns": [
+      "Princeton",
+      "PT2262",
+      "PT2260",
+      "EV1527"
+    ],
+    "bit_length_range": [24, 25]
+  },
+  "decoder": {
+    "fields": {
+      "key": {"regex": "Key:\\s*(0x[0-9a-fA-F]+)"},
+      "bit": {"regex": "Bit:\\s*(\\d+)"},
+      "te": {"regex": "Te:\\s*(\\d+)\\s*us"}
+    }
+  },
+  "typical_devices": [
+    "older garage door openers",
+    "wireless doorbells",
+    "simple remote switches",
+    "cheap car alarm fobs (pre-2005)",
+    "some wheelchair lift remotes"
+  ],
+  "security_notes": "Fixed-code. A captured transmission replays indefinitely. Do not rely on for anything security-sensitive.",
+  "references": [
+    "https://en.wikipedia.org/wiki/Princeton_Technology",
+    "https://docs.flipper.net/sub-ghz/protocols"
+  ],
+  "packs": ["fleetrf", "garage", "access-control"]
+}

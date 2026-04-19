@@ -1,0 +1,34 @@
+{
+  "id": "nec-ir",
+  "name": "NEC Infrared",
+  "category": "ir",
+  "typical_frequencies_hz": [38000],
+  "modulation": "PWM",
+  "fingerprint": {
+    "regex_patterns": [
+      "Protocol:\\s*NEC(?:ext)?",
+      "^NEC(?:ext)?$",
+      "\\bNEC\\s",
+      "\\bNECext\\b"
+    ]
+  },
+  "decoder": {
+    "fields": {
+      "address": {"regex": "A(?:ddress)?:\\s*((?:0x)?[0-9a-fA-F ]+)"},
+      "command": {"regex": "C(?:ommand)?:\\s*((?:0x)?[0-9a-fA-F ]+)"}
+    }
+  },
+  "typical_devices": [
+    "TVs (many brands)",
+    "audio receivers and soundbars",
+    "set-top boxes",
+    "DVD / Blu-ray players",
+    "air conditioners (partial)"
+  ],
+  "security_notes": "Not a security protocol. Trivially replayable by design.",
+  "references": [
+    "https://techdocs.altium.com/display/FPGA/NEC+Infrared+Transmission+Protocol",
+    "https://docs.flipper.net/infrared"
+  ],
+  "packs": []
+}

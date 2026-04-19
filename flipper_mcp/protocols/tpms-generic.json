@@ -1,0 +1,37 @@
+{
+  "id": "tpms-generic",
+  "name": "TPMS (generic — tire pressure monitoring)",
+  "category": "subghz",
+  "typical_frequencies_hz": [315000000, 433920000],
+  "modulation": "FSK",
+  "typical_bit_rate": 9600,
+  "fingerprint": {
+    "regex_patterns": [
+      "TPMS",
+      "Schrader",
+      "Renault TPMS",
+      "Toyota TPMS",
+      "Ford TPMS",
+      "GM TPMS"
+    ]
+  },
+  "decoder": {
+    "fields": {
+      "sensor_id": {"regex": "(?:ID|Sensor ID):\\s*(0x[0-9a-fA-F]+)"},
+      "pressure": {"regex": "Pressure:\\s*([0-9.]+)\\s*(?:kPa|psi|bar)"},
+      "temperature": {"regex": "Temp(?:erature)?:\\s*(-?[0-9.]+)\\s*(?:C|F)"},
+      "battery": {"regex": "Battery:\\s*(\\w+)"}
+    }
+  },
+  "typical_devices": [
+    "passenger vehicle tire-pressure sensors (all US vehicles model-year 2008+)",
+    "commercial / fleet tire-pressure sensors",
+    "paratransit and transit bus tire sensors"
+  ],
+  "security_notes": "Not a security protocol. Sensor IDs are broadcast in the clear and can be used to track a vehicle. Some fleets use sensor IDs for inventory — capture is legitimate for that use case only.",
+  "references": [
+    "https://en.wikipedia.org/wiki/Tire-pressure_monitoring_system",
+    "https://github.com/merbanan/rtl_433"
+  ],
+  "packs": ["fleetrf"]
+}

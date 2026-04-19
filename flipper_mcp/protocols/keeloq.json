@@ -1,0 +1,36 @@
+{
+  "id": "keeloq",
+  "name": "Microchip KeeLoq (HCS200 / HCS301 / HCS360)",
+  "category": "subghz",
+  "typical_frequencies_hz": [315000000, 433920000, 868000000],
+  "modulation": "OOK",
+  "typical_bit_rate": 1500,
+  "fingerprint": {
+    "regex_patterns": [
+      "KeeLoq",
+      "HCS[0-9]{3}"
+    ],
+    "bit_length_range": [64, 66]
+  },
+  "decoder": {
+    "fields": {
+      "fix": {"regex": "Fix:\\s*(0x[0-9a-fA-F]+)"},
+      "hop": {"regex": "Hop:\\s*(0x[0-9a-fA-F]+)"},
+      "sn": {"regex": "Sn:\\s*(0x[0-9a-fA-F]+)"},
+      "cnt": {"regex": "Cnt:\\s*(0x[0-9a-fA-F]+)"},
+      "btn": {"regex": "Btn:\\s*(0x[0-9a-fA-F]+)"}
+    }
+  },
+  "typical_devices": [
+    "modern garage door openers (Chamberlain, LiftMaster, Craftsman)",
+    "gate openers",
+    "legacy car key fobs (pre-2010, many brands)",
+    "RV / trailer locks"
+  ],
+  "security_notes": "Rolling code. Legacy manufacturer keys have been leaked. Specific implementations vary in robustness; some vulnerable to capture-and-replay or sample attacks.",
+  "references": [
+    "https://en.wikipedia.org/wiki/KeeLoq",
+    "https://docs.flipper.net/sub-ghz/protocols/keeloq"
+  ],
+  "packs": ["fleetrf", "garage", "access-control"]
+}

@@ -19,7 +19,8 @@ from typing import Optional
 
 from mcp.server.fastmcp import FastMCP
 
-from .bridge import FlipperBridge, FlipperError
+from .bridge import FlipperBridge
+from .registry import get_registry
 
 mcp = FastMCP("flipper")
 
@@ -208,6 +209,110 @@ def led(r: int = 0, g: int = 0, b: int = 0) -> str:
 def vibro(on: bool) -> str:
     """Pulse the vibration motor on or off."""
     return _get_bridge().send(f"vibro {1 if on else 0}")
+
+
+# -- registry (L2) ---------------------------------------------------------
+
+
+@mcp.tool()
+def registry_list(
+    category: Optional[str] = None,
+    pack: Optional[str] = None,
+) -> list[dict]:
+    """List known protocols in the bundled registry.
+
+    category: filter to one of subghz | ir | nfc | lfrfid | ble
+    pack: filter to a vertical pack, e.g. "fleetrf", "garage", "access-control"
+    """
+    return [
+        {
+            "id": p.id,
+            "name": p.name,
+            "category": p.category,
+            "typical_frequencies_hz": p.typical_frequencies_hz,
+            "typical_devices": p.typical_devices,
+            "packs": p.packs,
+        }
+        for p in get_registry().list(category=category, pack=pack)
+    ]
+
+
+@mcp.tool()
+def registry_describe(protocol_id: str) -> dict:
+    """Return the full registry entry for one protocol id."""
+    proto = get_registry().get(protocol_id)
+    if proto is None:
+        return {
+            "error": f"Unknown protocol '{protocol_id}'. "
+            "Call registry_list() to see what's available."
+        }
+    return proto.model_dump()
+
+
+@mcp.tool()
+def scan_and_identify(
+    frequency_hz: int, duration_s: float = 15.0
+) -> dict:
+    """Listen on SubGHz, then fingerprint the capture against the registry.
+
+    One-shot workflow: runs ``subghz rx``, collects output for ``duration_s``,
+    stops the scan, then matches the output against every known SubGHz
+    protocol. Returns both the raw text (for human review) and the
+    structured matches with decoded fields and metadata.
+
+    Examples:
+      frequency_hz=433920000 duration_s=15   # common key fobs / garage remotes
+      frequency_hz=315000000 duration_s=15   # older US garage / gate remotes
+      frequency_hz=868000000 duration_s=15   # EU ISM (smart meters, alarms)
+    """
+    raw = _get_bridge().stream(f"subghz rx {frequency_hz}", duration_s)
+    matches = get_registry().fingerprint(raw, category="subghz")
+    return {
+        "frequency_hz": frequency_hz,
+        "duration_s": duration_s,
+        "match_count": len(matches),
+        "matches": [m.to_dict() for m in matches],
+        "raw_output": raw,
+    }
+
+
+@mcp.tool()
+def ir_scan_and_identify(duration_s: float = 10.0) -> dict:
+    """Listen for IR, then fingerprint the capture against the registry."""
+    raw = _get_bridge().stream("ir rx", duration_s)
+    matches = get_registry().fingerprint(raw, category="ir")
+    return {
+        "duration_s": duration_s,
+        "match_count": len(matches),
+        "matches": [m.to_dict() for m in matches],
+        "raw_output": raw,
+    }
+
+
+# -- prompts (L3 hint) -----------------------------------------------------
+
+
+@mcp.prompt()
+def rf_triage(frequency_hz: int = 433920000, duration_s: float = 15.0) -> str:
+    """Kick off a structured RF triage workflow on a given frequency.
+
+    Produces a prompt that walks the agent through scan → identify →
+    explain, with the expected narrative structure for a report.
+    """
+    return (
+        f"You have access to a Flipper Zero via the `flipper` MCP server. "
+        f"Perform an RF triage at {frequency_hz} Hz for {duration_s} seconds:\n\n"
+        "1. Call `scan_and_identify` with those parameters.\n"
+        "2. For every protocol match returned, summarize:\n"
+        "   - what it is (one sentence, non-technical)\n"
+        "   - what devices typically use it\n"
+        "   - any security notes worth knowing\n"
+        "3. If the raw output contains signals that DIDN'T match any known "
+        "protocol, call them out separately with RSSI / timing info if "
+        "available — these are candidates for registry contributions.\n"
+        "4. End with a one-line verdict: is the frequency quiet, busy with "
+        "known benign traffic, or worth a longer capture."
+    )
 
 
 # ---------------------------------------------------------------------------

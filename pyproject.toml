@@ -1,11 +1,17 @@
 [project]
 name = "flipper-mcp"
-version = "0.1.0"
-description = "MCP server for driving a Flipper Zero over USB-CDC serial."
+version = "0.2.0"
+description = "MCP server for driving a Flipper Zero over USB-CDC serial, with a bundled RF/IR protocol registry."
 requires-python = ">=3.11"
 dependencies = [
   "mcp>=1.2",
   "pyserial>=3.5",
+  "pydantic>=2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
 ]
 
 [project.scripts]
@@ -18,3 +24,7 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["flipper_mcp"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

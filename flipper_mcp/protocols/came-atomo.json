@@ -1,0 +1,32 @@
+{
+  "id": "came-atomo",
+  "name": "CAME Atomo",
+  "category": "subghz",
+  "typical_frequencies_hz": [433920000, 868350000],
+  "modulation": "OOK",
+  "typical_bit_rate": 1000,
+  "fingerprint": {
+    "regex_patterns": [
+      "CAME[\\s_-]?Atomo",
+      "Came Atomo"
+    ]
+  },
+  "decoder": {
+    "fields": {
+      "key": {"regex": "Key:\\s*(0x[0-9a-fA-F]+)"},
+      "cnt": {"regex": "Cnt:\\s*(0x[0-9a-fA-F]+)"},
+      "sn": {"regex": "Sn:\\s*(0x[0-9a-fA-F]+)"}
+    }
+  },
+  "typical_devices": [
+    "CAME gate openers",
+    "CAME garage doors (European market)",
+    "commercial access control"
+  ],
+  "security_notes": "Rolling code. Proprietary algorithm; most known Flipper decoders rely on the Sub-GHz Chat community's reverse-engineering.",
+  "references": [
+    "https://en.wikipedia.org/wiki/Came_S.p.A.",
+    "https://github.com/flipperdevices/flipperzero-firmware"
+  ],
+  "packs": ["garage", "access-control"]
+}
