@@ -3,7 +3,7 @@
 Complements the MCP tools with a shell-usable surface for humans:
 
     flipper-registry status
-    flipper-registry list [--category subghz] [--pack fleetrf]
+    flipper-registry list [--category subghz] [--pack garage]
     flipper-registry index <URL>
     flipper-registry install <URL> <protocol-id>
     flipper-registry remove <protocol-id>
@@ -171,7 +171,7 @@ def main(argv: list[str] | None = None) -> int:
 
     p_list = sub.add_parser("list", help="List all loaded protocols")
     p_list.add_argument("--category", help="subghz | ir | nfc | lfrfid | ble")
-    p_list.add_argument("--pack", help="e.g. fleetrf, garage")
+    p_list.add_argument("--pack", help="e.g. garage, access-control")
 
     p_describe = sub.add_parser("describe", help="Show full entry for one protocol")
     p_describe.add_argument("protocol_id")

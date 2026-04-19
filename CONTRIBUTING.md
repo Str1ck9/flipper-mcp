@@ -60,7 +60,7 @@ rolling-code, [`nec-ir.json`](flipper_mcp/protocols/nec-ir.json) for IR.
   "references": [
     "URL to protocol spec, Wikipedia, or reverse-engineering writeup"
   ],
-  "packs": ["fleetrf", "garage"]  // tag into relevant verticals
+  "packs": ["garage", "access-control"]  // tag into relevant verticals
 }
 ```
 
@@ -112,7 +112,6 @@ Packs group protocols by vertical use-case. Current packs:
 |---|---|
 | `garage` | Garage/gate openers (residential + commercial) |
 | `access-control` | Access control: fobs, badges, gate/door systems |
-| `fleetrf` | Paratransit and fleet RF surfaces — TPMS, lift remotes, fuel-island keys, depot fobs |
 
 Propose new packs in your PR description if none of the existing ones fit.
 

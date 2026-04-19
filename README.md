@@ -30,7 +30,6 @@ couldn't unlock.
 | **L2** | Protocol registry — 13 bundled entries, fingerprinter, `scan_and_identify` | ✅ working |
 | **L3** | Remote registry sync — fetch signed protocol JSON on demand into a user cache | ✅ working |
 | **CLI** | `flipper-registry` for cache management and JSON validation | ✅ working |
-| **Pack** | FleetRF — paratransit / fleet RF surfaces (garage, gate, TPMS, lift remotes) | 🌱 seeded, accepting contributions |
 
 **Bundled protocols (13):** Princeton, KeeLoq, CAME Atomo, Nice FLO, Hormann
 HSM, FAAC SLH, Security+ 2.0, HT12, TPMS (generic), NEC IR, Samsung32 IR,
@@ -134,7 +133,7 @@ The same surface is exposed as a shell command for humans:
 
 ```bash
 flipper-registry status
-flipper-registry list --pack fleetrf
+flipper-registry list --pack garage
 flipper-registry describe princeton
 flipper-registry index https://example.com/index.json
 flipper-registry install https://example.com/index.json <protocol-id>
@@ -205,9 +204,21 @@ override bundled entries with the same `id`.
   "typical_devices": ["garage door openers", "simple remote switches"],
   "security_notes": "Fixed-code. Trivially replayable.",
   "references": ["https://en.wikipedia.org/wiki/..."],
-  "packs": ["fleetrf"]
+  "packs": ["garage"]
 }
 ```
+
+## External CC1101 module
+
+If you have an external CC1101 plugged into the GPIO header (better range, a
+second antenna path), pass `device=1` to `subghz_rx` / `scan_and_identify`
+for a single call, or export an env var to make it the default:
+
+```bash
+export FLIPPER_DEFAULT_DEVICE=1
+```
+
+Unset or `0` uses the Flipper's internal CC1101.
 
 ## Troubleshooting
 

@@ -33,6 +33,12 @@ from .registry import (
 
 mcp = FastMCP("flipper")
 
+# Per-user default radio device for SubGHz commands.
+#   0 = internal CC1101 (default for everyone without an add-on)
+#   1 = external CC1101 module plugged into the GPIO header
+# Override on a per-user basis by exporting FLIPPER_DEFAULT_DEVICE=1.
+_DEFAULT_DEVICE = int(os.environ.get("FLIPPER_DEFAULT_DEVICE", "0"))
+
 _bridge: Optional[FlipperBridge] = None
 
 
@@ -122,7 +128,7 @@ def storage_stat(path: str) -> str:
 def subghz_rx(
     frequency_hz: int,
     duration_s: float = 10.0,
-    device: int = 0,
+    device: Optional[int] = None,
 ) -> str:
     """Listen on SubGHz for `duration_s` seconds and return captured signals.
 
@@ -133,12 +139,14 @@ def subghz_rx(
       868 MHz -> 868000000   (EU ISM, smart meters, some alarm systems)
       915 MHz -> 915000000   (US ISM, LoRa US, industrial telemetry)
 
-    device: 0 = internal CC1101 (default), 1 = external CC1101 module.
+    device: 0 = internal CC1101, 1 = external CC1101 module. If unset,
+    falls back to the FLIPPER_DEFAULT_DEVICE env var (default 0).
 
     The Flipper's CC1101 is restricted to regional bands — check
     `hardware_region_provisioned` in `flipper_info` if a frequency is rejected.
     """
-    return _get_bridge().stream(f"subghz rx {frequency_hz} {device}", duration_s)
+    dev = device if device is not None else _DEFAULT_DEVICE
+    return _get_bridge().stream(f"subghz rx {frequency_hz} {dev}", duration_s)
 
 
 @mcp.tool()
@@ -234,7 +242,7 @@ def registry_list(
     """List known protocols in the bundled registry.
 
     category: filter to one of subghz | ir | nfc | lfrfid | ble
-    pack: filter to a vertical pack, e.g. "fleetrf", "garage", "access-control"
+    pack: filter to a vertical pack, e.g. "garage", "access-control"
     """
     return [
         {
@@ -265,7 +273,7 @@ def registry_describe(protocol_id: str) -> dict:
 def scan_and_identify(
     frequency_hz: int,
     duration_s: float = 15.0,
-    device: int = 0,
+    device: Optional[int] = None,
 ) -> dict:
     """Listen on SubGHz, then fingerprint the capture against the registry.
 
@@ -274,18 +282,21 @@ def scan_and_identify(
     protocol. Returns both the raw text (for human review) and the
     structured matches with decoded fields and metadata.
 
-    device: 0 = internal CC1101 (default), 1 = external CC1101 module.
+    device: 0 = internal CC1101, 1 = external CC1101 module. If unset,
+    falls back to the FLIPPER_DEFAULT_DEVICE env var (default 0).
 
     Examples:
       frequency_hz=433920000 duration_s=15   # common key fobs / garage remotes
       frequency_hz=315000000 duration_s=15   # older US garage / gate remotes
       frequency_hz=868000000 duration_s=15   # EU ISM (smart meters, alarms)
     """
-    raw = _get_bridge().stream(f"subghz rx {frequency_hz} {device}", duration_s)
+    dev = device if device is not None else _DEFAULT_DEVICE
+    raw = _get_bridge().stream(f"subghz rx {frequency_hz} {dev}", duration_s)
     matches = get_registry().fingerprint(raw, category="subghz")
     return {
         "frequency_hz": frequency_hz,
         "duration_s": duration_s,
+        "device": dev,
         "match_count": len(matches),
         "matches": [m.to_dict() for m in matches],
         "raw_output": raw,

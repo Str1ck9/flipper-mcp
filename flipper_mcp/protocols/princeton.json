@@ -25,13 +25,12 @@
     "older garage door openers",
     "wireless doorbells",
     "simple remote switches",
-    "cheap car alarm fobs (pre-2005)",
-    "some wheelchair lift remotes"
+    "cheap car alarm fobs (pre-2005)"
   ],
   "security_notes": "Fixed-code. A captured transmission replays indefinitely. Do not rely on for anything security-sensitive.",
   "references": [
     "https://en.wikipedia.org/wiki/Princeton_Technology",
     "https://docs.flipper.net/sub-ghz/protocols"
   ],
-  "packs": ["fleetrf", "garage", "access-control"]
+  "packs": ["garage", "access-control"]
 }

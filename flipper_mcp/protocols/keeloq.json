@@ -25,12 +25,12 @@
     "modern garage door openers (Chamberlain, LiftMaster, Craftsman)",
     "gate openers",
     "legacy car key fobs (pre-2010, many brands)",
-    "RV / trailer locks"
+    "RV and trailer locks"
   ],
   "security_notes": "Rolling code. Legacy manufacturer keys have been leaked. Specific implementations vary in robustness; some vulnerable to capture-and-replay or sample attacks.",
   "references": [
     "https://en.wikipedia.org/wiki/KeeLoq",
     "https://docs.flipper.net/sub-ghz/protocols/keeloq"
   ],
-  "packs": ["fleetrf", "garage", "access-control"]
+  "packs": ["garage", "access-control"]
 }

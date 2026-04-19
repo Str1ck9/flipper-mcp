@@ -81,10 +81,10 @@ def test_filter_by_category():
 
 def test_filter_by_pack():
     r = Registry.load_bundled()
-    fleet = r.list(pack="fleetrf")
-    assert len(fleet) >= 2
-    assert any(p.id == "tpms-generic" for p in fleet)
-    assert any(p.id == "princeton" for p in fleet)
+    garage = r.list(pack="garage")
+    assert len(garage) >= 4
+    assert any(p.id == "princeton" for p in garage)
+    assert any(p.id == "keeloq" for p in garage)
 
 
 def test_fingerprint_princeton_extracts_fields():

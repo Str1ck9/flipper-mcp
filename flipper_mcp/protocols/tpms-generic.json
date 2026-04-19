@@ -25,13 +25,12 @@
   },
   "typical_devices": [
     "passenger vehicle tire-pressure sensors (all US vehicles model-year 2008+)",
-    "commercial / fleet tire-pressure sensors",
-    "paratransit and transit bus tire sensors"
+    "commercial vehicle tire-pressure sensors"
   ],
-  "security_notes": "Not a security protocol. Sensor IDs are broadcast in the clear and can be used to track a vehicle. Some fleets use sensor IDs for inventory — capture is legitimate for that use case only.",
+  "security_notes": "Not a security protocol. Sensor IDs are broadcast in the clear and can be used to track a vehicle over time.",
   "references": [
     "https://en.wikipedia.org/wiki/Tire-pressure_monitoring_system",
     "https://github.com/merbanan/rtl_433"
   ],
-  "packs": ["fleetrf"]
+  "packs": []
 }
